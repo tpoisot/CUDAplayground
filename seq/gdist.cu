@@ -1,4 +1,4 @@
-// nvcc gdist.cu -o gdist -lcuda
+// nvcc gdist.cu -o gdist -lcuda -use_fast_math compiler
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,11 +13,27 @@
 
 __global__ void pwdist(char *se, float *dist)
 {
-    int tid = threadIdx.x + blockDim.x * blockIdx.x; // blockDim.x := 1000
-    if (tid < N)
-    {
-        c[tid] = a[tid] + b[tid];
-    }
+	int tid = blockIdx.x;
+	int M = blockDim.x - 1;
+	int ii = (M * (M - 1)) / 2 - tid - 1;
+	int K = (sqrtf(8 * ii + 1) - 1) / 2;
+	
+	int FSidx = M + K;
+	int SCidx = tid - M*(M+1)/2 + (K+1)*(K+2)/2; 
+	
+	int Dissim = 0;
+	for(int base = 0; base < NBASES; ++base)
+	{
+		if(!(se[seqpos(FSidx,base)] == se[seqpos(SCidx,base)]))
+		{
+			++Dissim;
+		}
+	}
+	
+	dist[blockIdx.x] = Dissim;
+	
+    //int tid = threadIdx.x + blockDim.x * blockIdx.x; // blockDim.x := 1000
+    
 }
 
 int main (int argc, char *argv[])
@@ -31,10 +47,10 @@ int main (int argc, char *argv[])
 	for(int i = 0; i < ds; ++i)
 	{
 		se[i] = 'a';
-		if (i % 3 == 4){se[i] = 'c';}
-		if (i % 7 == 4){se[i] = 't';}
-		if (i % 19 == 8){se[i] = '-';}
-		if (i % 13 == 1){se[i] = 'g';}
+		//if (i % 3 == 4){se[i] = 'c';}
+		//if (i % 7 == 4){se[i] = 't';}
+		//if (i % 19 == 8){se[i] = '-';}
+		//if (i % 13 == 1){se[i] = 'g';}
 	}
 	
 	// print sequences to screen just to check
@@ -74,6 +90,12 @@ int main (int argc, char *argv[])
 	/*
 	 * END OF THE MAIN PROGRAM
 	 */
+	
+	// Output of the results in a text form
+	for(int i = 0; i < ndist; ++i)
+	{
+		printf("%f \t",h_dist[i]);
+	}
 	
 	// free the vectors
 	cudaFree(d_se);
