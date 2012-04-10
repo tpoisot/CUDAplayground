@@ -7,18 +7,24 @@
 #include <time.h>
 #include <curand_kernel.h>
   
-#define NS 50
-#define NBASES 100
+#define NS 3
+#define NBASES 10
 #define seqpos(s_,b_)  ((b_) + (s_) * NBASES)
 
 __global__ void pwdist(char *se, float *dist)
 {
 	int tid = blockIdx.x;
-	int M = blockDim.x - 1;
+	/*
+	ii = M*(M+1)/2-1-i
+	K = floor((sqrt(8*ii+1)-1)/2)
+	Ro = M-1-K + 1
+	Co = i - M*(M+1)/2 + (K+1)*(K+2)/2
+	 */
+	int M = blockDim.x;
 	int ii = (M * (M - 1)) / 2 - tid - 1;
-	int K = (sqrtf(8 * ii + 1) - 1) / 2;
+	int K = (int)floor((sqrtf(8 * ii + 1) - 1) / 2);
 	
-	int FSidx = M + K;
+	int FSidx = M - K;
 	int SCidx = tid - M*(M+1)/2 + (K+1)*(K+2)/2; 
 	
 	int Dissim = 0;
@@ -30,7 +36,7 @@ __global__ void pwdist(char *se, float *dist)
 		}
 	}
 	
-	dist[blockIdx.x] = Dissim;
+	dist[tid] = (float)Dissim / NBASES;
 	
     //int tid = threadIdx.x + blockDim.x * blockIdx.x; // blockDim.x := 1000
     
@@ -43,22 +49,22 @@ int main (int argc, char *argv[])
 	const unsigned int bytes = ds * sizeof(char);
 	char *se = (char*)malloc(bytes);
 	
-	// create cyclic sequences
+	// create sequences
 	for(int i = 0; i < ds; ++i)
 	{
 		se[i] = 'a';
 		//if (i % 3 == 4){se[i] = 'c';}
 		//if (i % 7 == 4){se[i] = 't';}
-		//if (i % 19 == 8){se[i] = '-';}
+		if (i % 19 == 8){se[i] = '-';}
 		//if (i % 13 == 1){se[i] = 'g';}
 	}
 	
 	// print sequences to screen just to check
-	for(int i = 0; i < NBASES; i++)
+	for(int i = 0; i < NS; i++)
 	{
-		for(int j = 0; j < NS; j++)
+		for(int j = 0; j < NBASES; j++)
 		{
-			printf("%c",se[seqpos(j,i)]);
+			printf("%c",se[seqpos(i,j)]);
 		}
 		printf("\n");
 	}
@@ -83,6 +89,7 @@ int main (int argc, char *argv[])
 	
 	// call CUDA function pwdist
 	pwdist<<<ndist,1>>>(d_se, d_dist);
+	printf("Total of %u pairwise distances\n",ndist);
 	
 	// copy the distances from the device to the host
 	cudaMemcpy(h_dist, d_dist, ndist * sizeof(float), cudaMemcpyDeviceToHost);
@@ -94,7 +101,7 @@ int main (int argc, char *argv[])
 	// Output of the results in a text form
 	for(int i = 0; i < ndist; ++i)
 	{
-		printf("%f \t",h_dist[i]);
+		printf("%u\t%f\n",i,h_dist[i]);
 	}
 	
 	// free the vectors
