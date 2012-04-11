@@ -7,7 +7,7 @@
 #include <time.h>
 #include <curand_kernel.h>
   
-#define NS 3
+#define NS 4
 #define NBASES 10
 #define seqpos(s_,b_)  ((b_) + (s_) * NBASES)
 
