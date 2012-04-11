@@ -17,8 +17,9 @@
 __global__ void nullmodel(float *M, int *out, curandState *states)
 {
 	unsigned int tid = threadIdx.x + blockIdx.x * blockDim.x;
-	curand_init(12345, tid, 0, &states[tid]);
-	out[tid] = ((float)curand_uniform(&states[tid]) < M[tid])? 1 : 0;
+	curand_init(threadIdx.x, 0, 0, &states[tid]);
+	float tar = (float)curand_uniform(&states[tid]);
+	out[tid] = (tar < M[tid])? 1 : 0;
 }
 
 int main(int argc, char **argv)
@@ -30,8 +31,8 @@ int main(int argc, char **argv)
 	curandState *devStates;
 
 	// Network shape
-	int nrow = 10;
-	int ncol = 10;
+	int nrow = 100;
+	int ncol = 100;
 	double connec = 0.6;
 	int net_size = nrow * ncol; 
 
@@ -49,7 +50,6 @@ int main(int argc, char **argv)
 			if((double)(rand() / (float)RAND_MAX) < connec)
 			{
 				h_ref[col + row*nrow] = (float)(rand() / (float)RAND_MAX);
-				printf("Last value: %f\n",h_ref[col + row*nrow]);
 			}
 		}
 	}
@@ -66,52 +66,20 @@ int main(int argc, char **argv)
 	cudaMemcpy(d_out, h_out, nbytes_out, cudaMemcpyHostToDevice);
 	cudaMalloc( (void **)&devStates, net_size * sizeof(curandState) );
 
-	// Print the template network
-	printf("TEMPLATE......\n");
-	for(int row = 0; row < nrow; ++row)
-	{
-		for(int col = 0; col < ncol; ++col)
-		{
-			if(h_ref[col + row*nrow] > 0)
-			{
-				printf("1");
-			}
-			else
-			{
-				printf("0");
-			}
-		}
-		printf("\n");
-	}
-
 	// Record initial time and start doing the null model
 	start = clock();
 
-	nullmodel<<<ncol,nrow>>>(d_ref, d_out, devStates);
-
-	stop = clock();
-	printf("Null network generated in %f s.\n", (stop-start)/(float)CLOCKS_PER_SEC);
-
-	// Memory transfer from the device to the host
-	cudaMemcpy(h_out, h_ref, nbytes_ref, cudaMemcpyDeviceToHost);
-
-	printf("REPLICATE....\n");
-	for(int row = 0; row < nrow; ++row)
+	for(int repl = 0; repl < 1000; ++repl)
 	{
-		for(int col = 0; col < ncol; ++col)
-		{
-			if(h_out[col + row*nrow] == 1)
-			{
-				printf("1");
-			}
-			else
-			{
-				printf("0");
-			}
-		}
-		printf("\n");
+		nullmodel<<<ncol,nrow>>>(d_ref, d_out, devStates);
+		// Memory transfer from the device to the host
+		cudaMemcpy(h_out, d_out, nbytes_ref, cudaMemcpyDeviceToHost);
 	}
 	
+	stop = clock();
+	printf("1000 null network generated in %f s.\n", (stop-start)/(float)CLOCKS_PER_SEC);
+
+	// Free memory space
 	free(h_ref);
 	free(h_out);
 	cudaFree(d_ref);
