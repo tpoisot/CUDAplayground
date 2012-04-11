@@ -42,7 +42,7 @@ int main(int argc, char **argv)
 	float *h_ref = (float*)malloc(nbytes_ref);
 	int *h_out = (int*)malloc(nbytes_out);
 
-	// create a random betwork -------
+	// create a random network -------
 	for(int row = 0; row < nrow; ++row)
 	{
 		for(int col = 0; col < ncol; ++col)
